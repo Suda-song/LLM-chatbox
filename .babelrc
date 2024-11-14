@@ -1,0 +1,10 @@
+{
+    "presets": ["@babel/preset-react", "@babel/preset-env"],
+    "env": {
+        "dev": {
+            "plugins": [
+                ["react-refresh/babel"]
+            ]
+        }
+    }
+}
