@@ -331,7 +331,7 @@ Symbol：表示一个唯一的、不可变的值。
 BigInt：表示超大整数。
 
 # 12. 信息传递
-通过createContext和useContext 来创建全局的变量，Provider提供数据，useContext消费数据
+1. 通过createContext和useContext 来创建全局的变量，Provider提供数据，useContext消费数据,适用于多层级组件的通信，避免了 props 传递过多。
 ```js
 import React, { createContext, useState, useContext } from 'react';
 
@@ -362,9 +362,56 @@ function ChildComponent() {
 export default ParentComponent;
 ```
 
-父子组件通信：通过 props 传递数据。
-兄弟组件通信：通过父组件共享状态来实现。
-Context API：适用于多层级组件的通信，避免了 props 传递过多。
+2. 父子组件通信：通过 props 传递数据。
+```js
+function Parent() {
+  const handleClick = () => {
+    alert("Button clicked in Child!");
+  };
+  return <Child onClick={handleClick} />;
+}
+
+function Child({ onClick }) {
+  return <button onClick={onClick}>Click Me</button>;
+}
+
+```
+子组件给父组件传值
+```js
+function Parent() {
+  const handleData = (data) => {
+    console.log("Data from Child:", data);
+  };
+
+  return <Child sendData={handleData} />;
+}
+
+function Child({ sendData }) {
+  const data = "Hi, Parent!";
+  return <button onClick={() => sendData(data)}>Send Data</button>;
+}
+```
+3. 兄弟组件通信：通过父组件共享状态来实现。
+```js
+function Parent() {
+  const [message, setMessage] = React.useState("");
+
+  return (
+    <div>
+      <ChildA sendMessage={(msg) => setMessage(msg)} />
+      <ChildB message={message} />
+    </div>
+  );
+}
+
+function ChildA({ sendMessage }) {
+  return <button onClick={() => sendMessage("Hello from ChildA!")}>Send Message</button>;
+}
+
+function ChildB({ message }) {
+  return <div>Message from ChildA: {message}</div>;
+}
+```
 Redux：适用于全局状态管理，多个组件共享状态。
 自定义 Hook：提取和共享逻辑。
 
@@ -533,8 +580,162 @@ function App() {
   );
 }
 ```
+# 19. 闭包
+当一个内部函数在定义时访问了外部函数的变量，并在外部函数执行后仍然能够引用这些变量时，就形成了闭包
+```js
+function Counter() {
+  const [count, setCount] = React.useState(0);
 
+  const handleClick = () => {
+    setCount(count + 1); // 使用了闭包，访问外部的 `count`
+  };
 
+  return <button onClick={handleClick}>Count: {count}</button>;
+}
+```
+当使用 setTimeout 或异步操作时，闭包可能会导致捕获的变量值不符合预期。
+```js
+function Timer() {
+  const [count, setCount] = React.useState(0);
 
-= "sk-dlRLZFGbjsP4Iusxwq9e4zqgKcniyLwyfsrk7Zzny7dYCIn1"; 
-= 'b86fb329e564f24de04bdf63bae1feed'
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      console.log(count); // 捕获了初始的 `count` 值（可能是 0）
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []); // 依赖为空，闭包会导致 `count` 不更新
+}
+```
+修改
+```js
+React.useEffect(() => {
+  const timer = setInterval(() => {
+    setCount((prevCount) => prevCount + 1); // 使用函数式更新
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, []); 
+```
+父子传递参数
+```js
+function Parent() {
+  const [value, setValue] = React.useState('Hello');
+
+  const handleChildClick = () => {
+    console.log(value); // 闭包访问父组件的 `value`
+  };
+
+  return <Child onClick={handleChildClick} />;
+}
+
+function Child({ onClick }) {
+  return <button onClick={onClick}>Click Me</button>;
+}
+```
+# 20.代码分割
+代码分割通过将应用程序拆分为多个较小的代码块（chunks），只加载当前所需的部分，而非一次性加载整个应用。常用场景包括：
+按路由分割：不同页面只加载相关代码。
+按组件分割：较大的组件在需要时加载。
+按功能模块分割：加载特定功能所需的资源。
+1.动态引入 (Dynamic Import)
+使用 JavaScript 的 import() 函数动态加载模块，而不是静态引入。React 提供了 React.lazy 和 Suspense 来支持动态引入。
+```js
+import React, { Suspense } from 'react';
+
+// 使用 React.lazy 动态加载组件
+const LazyComponent = React.lazy(() => import('./LazyComponent'));
+
+function App() {
+  return (
+    <div>
+      <h1>My App</h1>
+      <Suspense fallback={<div>Loading...</div>}>
+        <LazyComponent />
+      </Suspense>
+    </div>
+  );
+}
+```
+React.lazy：返回一个动态加载的 React 组件。
+Suspense：定义加载状态时显示的内容（如加载指示器）。
+
+2.路由级别代码分割
+使用路由库（如 react-router-dom）结合动态加载，为每个页面生成单独的代码块。
+Home 和 About 页面会被单独打包，只有在用户访问对应路由时才加载相关代码。
+
+```js
+import React, { Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+const Home = React.lazy(() => import('./Home'));
+const About = React.lazy(() => import('./About'));
+
+function App() {
+  return (
+    <Router>
+      <Suspense fallback={<div>Loading...</div>}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+        </Routes>
+      </Suspense>
+    </Router>
+  );
+}
+```
+3. 按需加载库 (Library)
+```js
+import React, { useState } from 'react';
+
+function App() {
+  const [moment, setMoment] = useState(null);
+
+  const loadMoment = async () => {
+    const momentModule = await import('moment'); // 动态加载
+    setMoment(momentModule);
+  };
+
+  return (
+    <div>
+      <button onClick={loadMoment}>Load Moment.js</button>
+      {moment && <div>{moment().format('MMMM Do YYYY, h:mm:ss a')}</div>}
+    </div>
+  );
+}
+```
+
+ps:Webpack 会自动将 import() 生成的动态模块分割成单独的代码块。
+```js
+module.exports = {
+  optimization: {
+    splitChunks: {
+      chunks: 'all', // 自动分割所有模块
+    },
+  },
+};
+```
+# 21.深拷贝
+可以直接
+```js
+const original = { a: 1, b: { c: 2 } }
+const copy = JSON.parse(JSON.stringify(original))
+```
+或者递归复制
+```js
+function deepCopy(obj){
+  if(obj === null || typeof obj !== 'object'){ //这个返回value
+    return obj
+  }
+  const copy = Array.isArray(obj)? []:{}
+  for (const key in obj){
+    if (obj.hasOwnProperty(key)){
+      copy[key] = deepCopy(key) 
+    }
+  }
+  return copy
+const original = { a: 1, b: { c: 2 } };
+const copy = deepCopy(original);
+}
+```
+# 22. 
